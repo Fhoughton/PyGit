@@ -1,5 +1,6 @@
 from git_object import GitObject
 
+
 # Blobs are a git object that holds raw data from the user (e.g. files like main.c)
 class Blob(GitObject):
     def get_name(self):

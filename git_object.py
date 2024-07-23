@@ -1,2 +1,2 @@
-class GitObject():
+class GitObject:
     pass
