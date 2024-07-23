@@ -1,7 +1,7 @@
 import os
 import zlib
 import hashlib
-
+from blob import Blob
 
 class GitRepo:
     """Represents a git repository (working tree and git directory)"""
@@ -50,7 +50,7 @@ class GitRepo:
         resolved_path = os.path.join(self.gitdir, *path)
 
         if mkdir:
-            os.mkdir(resolved_path)
+            os.makedirs(resolved_path)
 
         return resolved_path
 
@@ -91,7 +91,7 @@ class GitRepo:
                         f"Unrecognized object type for {hash}, found '{object_type}' not commit, blob, tree or tag"
                     )
 
-    def write_object(self, obj):
+    def write_object(self, obj, nofile = False):
         """Writes a GitObject's data to the correct path and file, formatted correctly"""
         # Get the object as useable bytes
         object_data = obj.serialize()
@@ -114,15 +114,34 @@ class GitRepo:
         )
 
         # Write the object data to the file
-        with open(object_path, "wb") as object_file:
-            object_file.write(zlib.compress(object_data))
+        if not nofile:
+            with open(object_path, "wb") as object_file:
+                object_file.write(zlib.compress(object_data))
 
         # Return the hash to expose a reference for the new object
         return object_hash
-    
+
     def find_object(self, name, fmt=None, follow=True):
         return name
 
     def cat_file(self, obj, fmt):
         obj = self.read_object(self.find_object(obj, fmt=fmt))
         sys.stdout.buffer.write(obj.serialize())
+
+    def hash_object(self, path, type, write):
+        """If write is true then writes the hashed object to the repo"""
+        with open(path, "rb") as fd:
+            data = fd.read()
+
+            match type:
+                #case b'commit' : obj=GitCommit(data)
+                #case b'tree'   : obj=GitTree(data)
+                #case b'tag'    : obj=GitTag(data)
+                case b'blob': obj = Blob(data)
+                case _: raise Exception("Unknown type %s!" % fmt)
+
+            if write:
+                return self.write_object(obj)
+            else:
+                return self.write_object(obj, nofile = True)
+                
