@@ -2,6 +2,7 @@ import os
 import zlib
 import hashlib
 from blob import Blob
+from commit import GitCommit
 
 class GitRepo:
     """Represents a git repository (working tree and git directory)"""
@@ -79,9 +80,9 @@ class GitRepo:
             # Construct a class based upon what object type it is
             match object_type:
                 case b"commit":
-                    pass
+                    c = GitCommit
                 case b"blob":
-                    pass
+                    c = Blob
                 case b"tree":
                     pass
                 case b"tag":
@@ -91,7 +92,9 @@ class GitRepo:
                         f"Unrecognized object type for {hash}, found '{object_type}' not commit, blob, tree or tag"
                     )
 
-    def write_object(self, obj, nofile = False):
+            return c(object_data[null_index+1:])
+
+    def write_object(self, obj, nofile=False):
         """Writes a GitObject's data to the correct path and file, formatted correctly"""
         # Get the object as useable bytes
         object_data = obj.serialize()
@@ -134,14 +137,46 @@ class GitRepo:
             data = fd.read()
 
             match type:
-                #case b'commit' : obj=GitCommit(data)
-                #case b'tree'   : obj=GitTree(data)
-                #case b'tag'    : obj=GitTag(data)
-                case b'blob': obj = Blob(data)
-                case _: raise Exception("Unknown type %s!" % fmt)
+                # case b'commit' : obj=GitCommit(data)
+                # case b'tree'   : obj=GitTree(data)
+                # case b'tag'    : obj=GitTag(data)
+                case b"blob":
+                    obj = Blob(data)
+                case _:
+                    raise Exception("Unknown type %s!" % fmt)
 
             if write:
                 return self.write_object(obj)
             else:
-                return self.write_object(obj, nofile = True)
-                
+                return self.write_object(obj, nofile=True)
+
+    def print_log(self, hash, seen):
+        """Git log display"""
+        if hash in seen:
+            return
+        seen.add(hash)
+
+        commit = self.read_object(hash)
+        short_hash = hash[0:8]
+        message = commit.commit[None].decode("utf8").strip()
+        message = message.replace("\\", "\\\\")
+        message = message.replace("\"", "\\\"")
+
+        if "\n" in message: # Keep only the first line
+            message = message[:message.index("\n")]
+
+        print(f"{hash}: {message}")
+        assert commit.fmt==b'commit'
+
+        if not b'parent' in commit.commit.keys():
+            # Base case: the initial commit.
+            return
+
+        parents = commit.commit[b'parent']
+
+        if type(parents) != list:
+            parents = [ parents ]
+
+        for p in parents:
+            p = p.decode("ascii")
+            self.print_log(p, seen)
